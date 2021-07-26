@@ -65,6 +65,7 @@ app.post("/signup", (req, res) => {
     handle: req.body.handle,
   };
 
+  let token;
   db.doc(`/users/${newUser.handle}`)
     .get()
     .then((doc) => {
@@ -78,14 +79,30 @@ app.post("/signup", (req, res) => {
       }
     })
     .then((data) => {
+      userId = data.user.uid;
       return data.user.getIdToken();
     })
-    .then((token) => {
+    .then((idToken) => {
+      token = idToken;
+      const userCredentials = {
+        handle: newUser.handle,
+        email: newUser.email,
+        createdAt: new Date().toISOString(),
+        userId,
+      };
+      // persist these credentials into a document in the user's collection
+      return db.doc(`/users/${newUser.handle}`).set(userCredentials);
+    })
+    .then(() => {
       return res.status(201).json({ token });
     })
     .catch((err) => {
       console.error(err);
-      return res.status(500).json({ error: err.code });
+      if (err.code === "auth/email-already-in-use") {
+        return res.status(400).json({ email: "Email is already in use" });
+      } else {
+        return res.status(500).json({ error: err.code });
+      }
     });
 });
 
